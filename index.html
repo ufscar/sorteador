@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/js-sha3/0.9.3/sha3.min.js" integrity="sha512-l8ZGwlcmmNhyMXRweX0SqrZHIdfK3UgOSJsdSK5ozqlXOsZDogZFYp+TUzzI7pFYGUmzTCKZjS1q0nHiWOvs0g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/2.11.8/umd/popper.min.js" integrity="sha512-TPh2Oxlg1zp+kz3nFA0C5vVC6leG/6mm1z9+mA81MI5eaUVqasPLO8Cuk4gMF4gUfP5etR73rgU/8PNMsSesoQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.slim.min.js" integrity="sha512-sNylduh9fqpYUK5OYXWcBleGzbZInWj8yCJAU57r1dpSK9tP2ghf/SRYCMj+KsslFkCOt3TvJrX2AV/Gc3wOqA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" integrity="sha512-jnSuA4Ss2PkkikSOLtYs8BlYIeeIK1h99ty4YfvRPAlzr377vr3CXDb7sb7eEEBYjDtcYj+AjBH3FLv5uSJuXg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@eonasdan/tempus-dominus@6.9.11/dist/css/tempus-dominus.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.min.js" integrity="sha512-ykZ1QQr0Jy/4ZkvKuqWn4iF3lqPZyij9iRv6sGqLRdTPkY69YX6+7wvVGmsdBbiIfN/8OdsI7HABjvEok6ZopQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/js/solid.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/js/fontawesome.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@eonasdan/tempus-dominus@6.9.11/dist/js/tempus-dominus.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+        <script type="module">
+            import { 
+                HttpChainClient, 
+                HttpCachingChain, 
+                watch,
+                fetchBeacon,
+                roundAt
+            } from './drand-client/index.mjs'
+
+            const chainHash = '8990e7a9aaed2ffed73dbd7092123d6f289930540d7651336225dc172e51b2ce' // (hex encoded)
+            const publicKey = '868f005eb8e6e4ca0a47c8a77ceaa5309a47978a7c71bc5cce96366b5d7a569937c529eeda66c7293784a9402801af31' // (hex encoded)
+
+            const options = {
+                disableBeaconVerification: false, // `true` disables checking of signatures on beacons - faster but insecure!!!
+                noCache: false, // `true` disables caching when retrieving beacons for some providers
+                chainVerificationParams: { chainHash, publicKey }  // these are optional, but recommended! They are compared for parity against the `/info` output of a given node
+            };
+
+            const chain = new HttpCachingChain('https://api.drand.sh', options);
+            const client = new HttpChainClient(chain, options);
+
+            let datetimepicker1;
+
+            async function f_config_submit(event) {
+                const op = event.originalEvent.submitter.value;
+                const edital = $('#edital').val();
+                const maxval = parseInt($('#maxval').val());
+                const datetime = datetimepicker1.viewDate;
+
+                gui_wait();
+
+                const info = await client.chain().info();
+                const roundNumber = roundAt(datetime.getTime(), info);
+                let beacon;
+
+                if (op === 'sortear') {
+                    const abortController = new AbortController();
+                    let isFirstRound = true;
+                    for await (beacon of watch(client, abortController)) {
+                        if (beacon.round >= roundNumber) {
+                            abortController.abort();
+                            if (beacon.round > roundNumber || isFirstRound) {
+                                gui_idle();
+                                alert('O horário solicitado já passou. Escolha um horário no futuro.');
+                                return;
+                            }
+                        }
+                        isFirstRound = false;
+                    }
+                }
+                else if (op === 'auditar') {
+                    try {
+                        beacon = await fetchBeacon(client, roundNumber);
+                    }
+                    catch (err) {
+                        gui_idle();
+                        alert('Não é possível auditar um sorteio que ainda não aconteceu. Escolha um horário no passado.');
+                        return;
+                    }
+                }
+
+                gui_show_results();
+
+                let log = '';
+                function add_log(msg) {
+                    log += msg + '\n';
+                    $('#log').html(log);
+                }
+
+                add_log(`round = ${beacon.round}`);
+
+                const randomness = beacon.randomness;
+                const mask = (1n << BigInt(Math.ceil(Math.log2(maxval)))) - 1n;
+                const maskhex = `0x${mask.toString(16)}`;
+                let res;
+
+                for (let i = 0; ; i++) {
+                    const input = `${edital}|${randomness}|${i}`;
+                    const hash = BigInt('0x' + sha3_224(input));
+                    res = (hash & mask) + 1n;
+
+                    add_log(`(sha3_224('${input}') & ${maskhex}) + 1 = ${res.toString()}`);
+                    
+                    if (res <= BigInt(maxval)) {
+                        break;
+                    }
+                }
+
+                $('#result').html(`${res.toString()}`);
+            }
+
+            $(() => {
+                datetimepicker1 = new tempusDominus.TempusDominus(document.getElementById('datetimepicker1'), {
+                  localization: {
+                    locale: 'pt-BR',
+                    format: 'dd/MM/yyyy HH:mm',
+                  }
+                });
+                const now = Date.now();
+                datetimepicker1.dates.setValue(tempusDominus.DateTime.convert(new Date(now - (now % 60000) + (5 * 60000))));
+
+                $('#f_config').submit((ev) => { ev.preventDefault(); f_config_submit(ev); });
+            });
+
+            function gui_idle() {
+                $('#btn_sortear').html('Sortear');
+                $('input').prop('disabled', false);
+            }
+
+            function gui_wait() {
+                $('#btn_sortear').html('Aguarde...');
+                $('input').prop('disabled', true);
+            }
+
+            function gui_show_results() {
+                $('.btn').addClass('d-none');
+                $('#s_results').removeClass('d-none');
+            }
+        </script>
+
+    </head>
+    <body>
+        <div class="container-sm">
+            <div id="s_config">
+                <h1>Configurações do sorteio</h1>
+                <form id="f_config">
+                    <div class="mb-3">
+                        <label for="edital">Identificação do edital</label>
+                        <input type="text" id="edital" class="form-control" placeholder="permitidos a-zA-Z0-9./-" pattern="[a-zA-Z0-9.\/\-]+" required autofocus>
+                    </div>
+                    <div class="mb-3">
+                        <label for="datetimepicker1Input">Horário do sorteio</label>
+                        <div class="input-group" id="datetimepicker1" data-td-target-input="nearest" data-td-target-toggle="nearest">
+                            <input id="datetimepicker1Input" type="text" class="form-control" data-td-target="#datetimepicker1" />
+                            <span class="input-group-text" data-td-target="#datetimepicker1" data-td-toggle="datetimepicker">
+                                <span class="fas fa-calendar"></span>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="d-inline-flex align-items-center">
+                            <label for="maxval">Sortear valor entre 1 e&nbsp;</label>
+                            <input type="number" id="maxval" class="form-control" style="max-width:150px" placeholder="valor máximo" min="2" required>
+                        </div>
+                    </div>
+                    <button id="btn_sortear" class="btn btn-lg btn-primary btn-block mt-2" type="submit" value="sortear">Sortear</button>
+                    <button id="btn_auditar" class="btn btn-lg btn-secondary btn-block mt-2" type="submit" value="auditar">Auditar</button>
+                </form>
+            </div>
+
+            <div id="s_results" class="mt-4 d-none">
+                <h1>Resultado</h1>
+                <p id="result" class="display-1"></p>
+                <pre id="log"></pre>
+            </div>
+        </div>
+    </body>
+</html>
+    
