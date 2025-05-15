@@ -110,6 +110,7 @@
                 }
 
                 $('#result').html(`${res.toString()}`);
+                $('#result_title').html(op === 'sortear' ? 'Resultado do sorteio' : 'Resultado da auditoria');
             }
 
             $(() => {
@@ -175,7 +176,7 @@
             </div>
 
             <div id="s_results" class="mt-4 d-none">
-                <h1>Resultado</h1>
+                <h1 id="result_title">Resultado</h1>
                 <p id="result" class="display-1"></p>
                 <pre id="log"></pre>
             </div>
