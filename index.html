@@ -43,7 +43,7 @@
                 const maxval = parseInt($('#maxval').val());
                 const time = timeRoundToMin(datetimepicker1.viewDate.getTime());
 
-                gui_wait();
+                gui_wait(op);
 
                 const info = await client.chain().info();
                 const roundNumber = roundAt(time, info);
@@ -131,24 +131,31 @@
 
             function gui_idle() {
                 $('#btn_sortear').html('Sortear');
-                $('input').prop('disabled', false);
+                $('#btn_auditar').html('Auditar');
+                $('input, button').prop('disabled', false);
             }
 
-            function gui_wait() {
-                $('#btn_sortear').html('Aguarde...');
-                $('input').prop('disabled', true);
+            function gui_wait(op) {
+                const spinner = '<i class="fas fa-spinner fa-spin"></i>';
+                if (op === 'sortear') {
+                    $('#btn_sortear').html(spinner);
+                }
+                else if (op === 'auditar') {
+                    $('#btn_auditar').html(spinner);
+                }
+                $('input, button').prop('disabled', true);
             }
 
             function gui_show_results() {
-                $('.btn').addClass('d-none');
+                $('button').addClass('d-none');
                 $('#s_results').removeClass('d-none');
             }
         </script>
 
     </head>
     <body>
-        <div class="container-sm">
-            <div id="s_config">
+        <main class="container-sm">
+            <div id="s_config" class="bg-light rounded p-2">
                 <h1>Configurações do sorteio</h1>
                 <form id="f_config">
                     <div class="mb-3">
@@ -176,8 +183,10 @@
             </div>
 
             <div id="s_results" class="mt-4 d-none">
-                <h1 id="result_title">Resultado</h1>
-                <p id="result" class="display-1"></p>
+                <div class="bg-light rounded p-2 mb-4">
+                    <h1 id="result_title">Resultado</h1>
+                    <p id="result" class="display-1"></p>
+                </div>
                 <pre id="log"></pre>
             </div>
         </div>
