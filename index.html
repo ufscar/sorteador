@@ -50,18 +50,25 @@
                 let beacon;
 
                 if (op === 'sortear') {
+                    let b = await client.latest();
+                    if (b.round >= roundNumber) {
+                        gui_idle();
+                        alert('O horário solicitado já passou. Escolha um horário no futuro.');
+                        return;
+                    }
+
                     const abortController = new AbortController();
-                    let isFirstRound = true;
-                    for await (beacon of watch(client, abortController)) {
-                        if (beacon.round >= roundNumber) {
+                    for await (let b of watch(client, abortController)) {
+                        if (b.round == roundNumber) {
+                            beacon = b;
                             abortController.abort();
-                            if (beacon.round > roundNumber || isFirstRound) {
-                                gui_idle();
-                                alert('O horário solicitado já passou. Escolha um horário no futuro.');
-                                return;
-                            }
                         }
-                        isFirstRound = false;
+                        else if (b.round > roundNumber) {
+                            gui_idle();
+                            alert('O horário solicitado já passou. Escolha um horário no futuro.');
+                            abortController.abort();
+                            return;
+                        }
                     }
                 }
                 else if (op === 'auditar') {
