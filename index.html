@@ -41,12 +41,12 @@
                 const op = event.originalEvent.submitter.value;
                 const edital = $('#edital').val();
                 const maxval = parseInt($('#maxval').val());
-                const datetime = datetimepicker1.viewDate;
+                const time = timeRoundToMin(datetimepicker1.viewDate.getTime());
 
                 gui_wait();
 
                 const info = await client.chain().info();
-                const roundNumber = roundAt(datetime.getTime(), info);
+                const roundNumber = roundAt(time, info);
                 let beacon;
 
                 if (op === 'sortear') {
@@ -119,11 +119,14 @@
                     format: 'dd/MM/yyyy HH:mm',
                   }
                 });
-                const now = Date.now();
-                datetimepicker1.dates.setValue(tempusDominus.DateTime.convert(new Date(now - (now % 60000) + (5 * 60000))));
+                datetimepicker1.dates.setValue(tempusDominus.DateTime.convert(new Date(timeRoundToMin(Date.now()) + 5 * 60000)));
 
                 $('#f_config').submit((ev) => { ev.preventDefault(); f_config_submit(ev); });
             });
+
+            function timeRoundToMin(time) {
+                return time - (time % 60000);
+            }
 
             function gui_idle() {
                 $('#btn_sortear').html('Sortear');
