@@ -120,7 +120,7 @@
                     format: 'dd/MM/yyyy HH:mm',
                   }
                 });
-                datetimepicker1.dates.setValue(tempusDominus.DateTime.convert(new Date(timeRoundToMin(Date.now()) + 5 * 60000)));
+                datetimepicker1.dates.setValue(tempusDominus.DateTime.convert(new Date(timeRoundToMin(Date.now()) + 2 * 60000)));
 
                 $('#f_config').submit((ev) => { ev.preventDefault(); f_config_submit(ev); });
             });
