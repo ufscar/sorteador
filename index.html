@@ -127,20 +127,19 @@
                 }
                 else if (qtd > 1) {
                     let res = [];
-                    let rem = Array.from({length: maxval}, (_, i) => i + 1)
+                    let rem = new Set(Array.from({length: maxval}, (_, i) => i + 1));
 
                     for (let i = 1; i <= qtd; i++) {
                         await add_log('');
                         await add_log(`* sorteio da ${i}ª colocação`);
-                        await add_log(`ainda não sorteados: ${rem}`);
-                        if (rem.length === 1) {
-                            res.push(rem[0]);
+                        if (rem.size === 1) {
+                            res.push(rem.values().next().value);
                         }
                         else {
                             while (true) {
                                 const elem = await sample(maxval);
-                                if (rem.includes(elem)) {
-                                    rem = rem.filter(e => e !== elem);
+                                if (rem.has(elem)) {
+                                    rem.delete(elem);
                                     res.push(elem);
                                     break;
                                 }
