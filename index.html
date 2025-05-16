@@ -40,8 +40,14 @@
             async function f_config_submit(event) {
                 const op = event.originalEvent.submitter.value;
                 const edital = $('#edital').val();
+                const qtd = parseInt($('#qtd').val());
                 const maxval = parseInt($('#maxval').val());
                 const time = timeRoundToMin(datetimepicker1.viewDate.getTime());
+
+                if (qtd > maxval) {
+                    alert('A quantidade de valores sorteados deve ser menor ou igual ao valor máximo.');
+                    return;
+                }
 
                 gui_wait(op);
 
@@ -59,7 +65,7 @@
 
                     const abortController = new AbortController();
                     for await (let b of watch(client, abortController)) {
-                        if (b.round == roundNumber) {
+                        if (b.round === roundNumber) {
                             beacon = b;
                             abortController.abort();
                         }
@@ -84,32 +90,68 @@
 
                 gui_show_results();
 
-                let log = '';
-                function add_log(msg) {
-                    log += msg + '\n';
-                    $('#log').html(log);
+                async function add_log(msg) {
+                    $('#log').append(document.createTextNode(`${msg}\n`));
+                    await new Promise(r => setTimeout(r, 0));  // allow DOM to update
                 }
 
-                add_log(`round = ${beacon.round}`);
+                await add_log(`round = ${beacon.round}`);
 
                 const randomness = beacon.randomness;
-                const mask = (1n << BigInt(Math.ceil(Math.log2(maxval)))) - 1n;
-                const maskhex = `0x${mask.toString(16)}`;
-                let res;
+                let sample_num = 0;
 
-                for (let i = 0; ; i++) {
-                    const input = `${edital}|${randomness}|${i}`;
-                    const hash = BigInt('0x' + sha3_224(input));
-                    res = (hash & mask) + 1n;
+                async function sample(n) {
+                    const mask = (1n << BigInt(Math.ceil(Math.log2(n)))) - 1n;
+                    const maskhex = `0x${mask.toString(16)}`;
+                    let res;
 
-                    add_log(`(sha3_224('${input}') & ${maskhex}) + 1 = ${res.toString()}`);
-                    
-                    if (res <= BigInt(maxval)) {
-                        break;
+                    while (true) {
+                        const input = `${edital}|${randomness}|${sample_num}`;
+                        sample_num++;
+
+                        const hash = BigInt('0x' + sha3_224(input));
+                        res = Number(hash & mask) + 1;
+
+                        await add_log(`(sha3_224('${input}') & ${maskhex}) + 1 = ${res}`);
+
+                        if (res <= n) {
+                            break;
+                        }
                     }
+
+                    return res;
                 }
 
-                $('#result').html(`${res.toString()}`);
+                if (qtd === 1) {
+                    $('#result').html(await sample(maxval));
+                }
+                else if (qtd > 1) {
+                    let res = [];
+                    let rem = Array.from({length: maxval}, (_, i) => i + 1)
+
+                    for (let i = 1; i <= qtd; i++) {
+                        await add_log('');
+                        await add_log(`* sorteio da ${i}ª colocação`);
+                        await add_log(`ainda não sorteados: ${rem}`);
+                        if (rem.length === 1) {
+                            res.push(rem[0]);
+                        }
+                        else {
+                            while (true) {
+                                const elem = await sample(maxval);
+                                if (rem.includes(elem)) {
+                                    rem = rem.filter(e => e !== elem);
+                                    res.push(elem);
+                                    break;
+                                }
+                            }
+                        }
+                        await add_log(`resultado parcial: ${res}`);
+                    }
+
+                    $('#result').html(res.join(',<br />'));
+                }
+
                 $('#result_title').html(op === 'sortear' ? 'Resultado do sorteio' : 'Resultado da auditoria');
             }
 
@@ -123,6 +165,7 @@
                 datetimepicker1.dates.setValue(tempusDominus.DateTime.convert(new Date(timeRoundToMin(Date.now()) + 2 * 60000)));
 
                 $('#f_config').submit((ev) => { ev.preventDefault(); f_config_submit(ev); });
+                gui_idle();
             });
 
             function timeRoundToMin(time) {
@@ -173,8 +216,10 @@
                     </div>
                     <div class="mb-3">
                         <div class="d-inline-flex align-items-center">
-                            <label for="maxval">Sortear valor entre 1 e&nbsp;</label>
-                            <input type="number" id="maxval" class="form-control" style="max-width:150px" placeholder="valor máximo" min="2" required>
+                            <label for="qtd" style="margin-right:6pt">Sortear</label>
+                            <input type="number" id="qtd" class="form-control" style="max-width:90px" min="1" value="1" required>
+                            <label for="qtd" style="margin-left:6pt;margin-right:6pt">valores entre 1 e</label>
+                            <input type="number" id="maxval" class="form-control" style="max-width:90px" min="2" required>
                         </div>
                     </div>
                     <button id="btn_sortear" class="btn btn-lg btn-primary btn-block mt-2" type="submit" value="sortear">Sortear</button>
@@ -185,11 +230,11 @@
             <div id="s_results" class="mt-4 d-none">
                 <div class="bg-light rounded p-2 mb-4">
                     <h1 id="result_title">Resultado</h1>
-                    <p id="result" class="display-1"></p>
+                    <p id="result" class="display-2 user-select-all"></p>
                 </div>
-                <pre id="log"></pre>
+                <pre id="log" class="user-select-all"></pre>
             </div>
         </div>
     </body>
 </html>
-    
+
