@@ -65,6 +65,11 @@
 
                 if (op === 'sortear') {
                     let b = await client.latest();
+                    if (Math.abs(b.round - roundAt(Date.now(), info)) > 1) {
+                        gui_idle();
+                        alert('O relógio do seu computador está errado. Habilite a sincronização de relógio do seu sistema operacional com a rede e tente novamente.');
+                        return;
+                    }
                     if (b.round >= roundNumber) {
                         gui_idle();
                         alert('O horário solicitado já passou. Escolha um horário no futuro.');
